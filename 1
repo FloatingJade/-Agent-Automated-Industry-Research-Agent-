@@ -1,1 +1,81 @@
+import os
+from langchain_openai import ChatOpenAI
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+from langchain.tools import tool
+from langchain_core.prompts import ChatPromptTemplate
+
+# ==========================================
+# 1. 定义 Agent 可以使用的外部工具 (Tools)
+# ==========================================
+
+@tool
+def search_industry_news(query: str) -> str:
+    """
+    当需要获取最新的行业新闻、竞品动态或实时信息时，调用此工具。
+    参数 query 是用于搜索的关键词。
+    """
+    # 这里为了演示，使用 Mock 数据。实际应用中可接入 Google Search API 或 Bing API
+    print(f"\n[Tool Execution] 正在联网搜索关键词: {query}")
+    mock_search_results = (
+        f"关于【{query}】的最新资讯：\n"
+        "1. 某头部大厂刚刚发布了最新的 API 补贴计划，大幅降低了开发者成本。\n"
+        "2. 业内多篇报告指出，Agent 架构在企业内部提效的落地率正在直线上升。\n"
+        "3. 开源模型能力逼近闭源，但在复杂 Function Calling 场景下仍有一定差距。"
+    )
+    return mock_search_results
+
+@tool
+def save_report_to_file(content: str, filename: str) -> str:
+    """
+    当需要将生成的分析报告保存到本地文件时，调用此工具。
+    参数 content 是报告的正文，filename 是文件名。
+    """
+    print(f"\n[Tool Execution] 正在保存报告至文件: {filename}")
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(content)
+    return "报告保存成功！"
+
+# 定义工具列表
+tools = [search_industry_news, save_report_to_file]
+
+# ==========================================
+# 2. 初始化大模型与 Prompt
+# ==========================================
+
+# 填入你目前拥有的任何 API Key（测试用）
+os.environ["OPENAI_API_KEY"] = "your-api-key-here" 
+# 如果使用其他平台兼容 OpenAI 格式的 API，可以修改 base_url
+# os.environ["OPENAI_API_BASE"] = "https://api.your-provider.com/v1"
+
+# 初始化支持 Tool Calling 的模型 (例如 gpt-3.5-turbo 或 gpt-4o)
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0.2)
+
+# 定义 Agent 的系统提示词
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "你是一个资深的行业分析师 Agent。你需要灵活使用工具来搜索最新信息，总结提炼后，将最终的高质量报告保存到本地。"),
+    ("human", "{input}"),
+    ("placeholder", "{agent_scratchpad}"),
+])
+
+# ==========================================
+# 3. 构建并运行 Agent
+# ==========================================
+
+# 创建 Agent 及其执行器
+agent = create_tool_calling_agent(llm, tools, prompt)
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+if __name__ == "__main__":
+    print("🤖 行业研究 Agent 已启动...\n")
+    
+    # 模拟用户的任务输入
+    user_task = "请帮我调研一下目前 'AI Agent 在企业办公场景的落地情况'，提取 3 个核心洞察，并将结果用 Markdown 格式保存为 'agent_research_report.md'。"
+    
+    print(f"用户指令: {user_task}\n")
+    
+    # 执行 Agent
+    response = agent_executor.invoke({"input": user_task})
+    
+    print("\n✅ Agent 任务执行完毕！")
+    print("最终回复:", response['output'])
 
